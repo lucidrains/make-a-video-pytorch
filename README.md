@@ -6,6 +6,8 @@ Implementation of <a href="https://makeavideo.studio/">Make-A-Video</a>, new SOT
 
 The pseudo-3d convolutions isn't a new concept. It has been explored before in other contexts, say for protein contact prediction as <a href="https://www.biorxiv.org/content/10.1101/2022.08.04.502748v2.full">"dimensional hybrid residual networks"</a>.
 
+The gist of the paper comes down to, take a SOTA image model (here they use DALL-E2, but the same learning points would easily apply to Imagen), make a few minor modifications for attention across time and other ways to skimp on the compute cost, do frame interpolation correctly, get a great video model out.
+
 ## Citations
 
 ```bibtex
