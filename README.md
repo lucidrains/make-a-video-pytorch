@@ -8,6 +8,8 @@ The pseudo-3d convolutions isn't a new concept. It has been explored before in o
 
 The gist of the paper comes down to, take a SOTA text-to-image model (here they use DALL-E2, but the same learning points would easily apply to Imagen), make a few minor modifications for <a href="https://arxiv.org/abs/2204.03458">attention across time</a> and other ways to skimp on the compute cost, do frame interpolation correctly, get a great video model out.
 
+<a href="https://www.youtube.com/watch?v=AcvmyqGgMh8">AI Coffee Break explanation</a>
+
 ## Citations
 
 ```bibtex
