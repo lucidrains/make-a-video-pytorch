@@ -21,7 +21,7 @@ The gist of the paper comes down to, take a SOTA text-to-image model (here they 
 ## Install
 
 ```bash
-$ pip install make-a-video
+$ pip install make-a-video-pytorch
 ```
 
 ## Usage
@@ -49,7 +49,7 @@ conv_out = conv(video) # (1, 256, 8, 16, 16)
 attn_out = attn(video) # (1, 256, 8, 16, 16)
 ```
 
-Passing in images (if one were to pretrain on images first, both temporal convolution and attention will be automatically skipped)
+Passing in images (if one were to pretrain on images first), both temporal convolution and attention will be automatically skipped. In other words, you can use this straightforwardly in your 2d Unet and then port it over to a 3d Unet once that phase of the training is done. The temporal modules are initialized to output identity as the paper had done.
 
 ```python
 import torch
@@ -103,6 +103,7 @@ attn_out = attn(video, attend_across_time = False) # (1, 256, 8, 16, 16)
 - [ ] give attention the best positional embeddings research has to offer
 - [ ] soup up the attention
 - [ ] offer a function, similar to how MosaicML's approach, that automatically rigs a 2d-unet from dalle2-pytorch to be 3d
+- [ ] consider learned exponential moving average across time from https://github.com/lucidrains/Mega-pytorch
 
 ## Citations
 
