@@ -10,6 +10,12 @@ The gist of the paper comes down to, take a SOTA text-to-image model (here they 
 
 <a href="https://www.youtube.com/watch?v=AcvmyqGgMh8">AI Coffee Break explanation</a>
 
+## Appreciation
+
+- <a href="https://stability.ai/">Stability.ai</a> for the generous sponsorship to work on cutting edge artificial intelligence research
+
+- <a href="https://github.com/arogozhnikov">Alex</a> for <a href="https://github.com/arogozhnikov/einops">einops</a>, an abstraction that is simply genius. No other word for it.
+
 ## Install
 
 ```bash
@@ -101,5 +107,15 @@ attn_out = attn(video, attend_across_time = False) # (1, 256, 8, 16, 16)
 @misc{Singer2022,
     author  = {Uriel Singer},
     url     = {https://makeavideo.studio/Make-A-Video.pdf}
+}
+```
+
+```bibtex
+@inproceedings{rogozhnikov2022einops,
+    title   = {Einops: Clear and Reliable Tensor Manipulations with Einstein-like Notation},
+    author  = {Alex Rogozhnikov},
+    booktitle = {International Conference on Learning Representations},
+    year    = {2022},
+    url     = {https://openreview.net/forum?id=oapKSVM2bcj}
 }
 ```
