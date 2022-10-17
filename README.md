@@ -100,6 +100,7 @@ attn_out = attn(video, attend_across_time = False) # (1, 256, 8, 16, 16)
 - [ ] wire up <a href="https://github.com/lucidrains/dalle2-pytorch">dalle2-pytorch</a> unet with pseudo 3d convs + spatial temporal attention
 - [ ] give attention the best positional embeddings research has to offer
 - [ ] soup up the attention
+- [ ] offer a function, similar to how MosaicML's approach, that automatically rigs a 2d-unet from dalle2-pytorch to be 3d
 
 ## Citations
 
