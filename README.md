@@ -10,6 +10,91 @@ The gist of the paper comes down to, take a SOTA text-to-image model (here they 
 
 <a href="https://www.youtube.com/watch?v=AcvmyqGgMh8">AI Coffee Break explanation</a>
 
+## Install
+
+```bash
+$ pip install make-a-video
+```
+
+## Usage
+
+Passing in video features
+
+```python
+import torch
+from make_a_video_pytorch import Pseudo3DConv, SpatioTemporalAttention
+
+conv = Pseudo3DConv(
+    dim = 256,
+    kernel_size = 3
+)
+
+attn = SpatioTemporalAttention(
+    dim = 256,
+    dim_head = 64,
+    heads = 8
+)
+
+video = torch.randn(1, 256, 8, 16, 16) # (batch, features, frames, height, width)
+
+conv_out = conv(video) # (1, 256, 8, 16, 16)
+attn_out = attn(video) # (1, 256, 8, 16, 16)
+```
+
+Passing in images (if one were to pretrain on images first, both temporal convolution and attention will be automatically skipped)
+
+```python
+import torch
+from make_a_video_pytorch import Pseudo3DConv, SpatioTemporalAttention
+
+conv = Pseudo3DConv(
+    dim = 256,
+    kernel_size = 3
+)
+
+attn = SpatioTemporalAttention(
+    dim = 256,
+    dim_head = 64,
+    heads = 8
+)
+
+images = torch.randn(1, 256, 16, 16) # (batch, features, height, width)
+
+conv_out = conv(images) # (1, 256, 16, 16)
+attn_out = attn(images) # (1, 256, 16, 16)
+```
+
+You can also control the two modules so that when fed 3-dimensional features, it only does training spatially
+
+```python
+import torch
+from make_a_video_pytorch import Pseudo3DConv, SpatioTemporalAttention
+
+conv = Pseudo3DConv(
+    dim = 256,
+    kernel_size = 3
+)
+
+attn = SpatioTemporalAttention(
+    dim = 256,
+    dim_head = 64,
+    heads = 8
+)
+
+video = torch.randn(1, 256, 8, 16, 16) # (batch, features, frames, height, width)
+
+# below it will not train across time
+
+conv_out = conv(video, convolve_across_time = False) # (1, 256, 8, 16, 16)
+attn_out = attn(video, attend_across_time = False) # (1, 256, 8, 16, 16)
+```
+
+## Todo
+
+- [ ] wire up <a href="https://github.com/lucidrains/dalle2-pytorch">dalle2-pytorch</a> unet with pseudo 3d convs + spatial temporal attention
+- [ ] give attention the best positional embeddings research has to offer
+- [ ] soup up the attention
+
 ## Citations
 
 ```bibtex
