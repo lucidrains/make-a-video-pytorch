@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'make-a-video-pytorch',
   packages = find_packages(exclude=[]),
-  version = '0.0.1',
+  version = '0.0.2',
   license='MIT',
   description = 'Make-A-Video - Pytorch',
   author = 'Phil Wang',
@@ -19,7 +19,7 @@ setup(
   ],
   install_requires=[
     'dalle2-pytorch',
-    'einops>=0.4',
+    'einops>=0.6',
     'torch>=1.6',
   ],
   classifiers=[

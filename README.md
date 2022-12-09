@@ -30,9 +30,9 @@ Passing in video features
 
 ```python
 import torch
-from make_a_video_pytorch import Pseudo3DConv, SpatioTemporalAttention
+from make_a_video_pytorch import PseudoConv3d, SpatioTemporalAttention
 
-conv = Pseudo3DConv(
+conv = PseudoConv3d(
     dim = 256,
     kernel_size = 3
 )
@@ -53,9 +53,9 @@ Passing in images (if one were to pretrain on images first), both temporal convo
 
 ```python
 import torch
-from make_a_video_pytorch import Pseudo3DConv, SpatioTemporalAttention
+from make_a_video_pytorch import PseudoConv3d, SpatioTemporalAttention
 
-conv = Pseudo3DConv(
+conv = PseudoConv3d(
     dim = 256,
     kernel_size = 3
 )
@@ -76,9 +76,9 @@ You can also control the two modules so that when fed 3-dimensional features, it
 
 ```python
 import torch
-from make_a_video_pytorch import Pseudo3DConv, SpatioTemporalAttention
+from make_a_video_pytorch import PseudoConv3d, SpatioTemporalAttention
 
-conv = Pseudo3DConv(
+conv = PseudoConv3d(
     dim = 256,
     kernel_size = 3
 )
