@@ -289,7 +289,7 @@ class Downsample(nn.Module):
             x, = unpack(x, ps, '* c h w')
             x = rearrange(x, 'b f c h w -> b c f h w')
 
-        if not exists(self.down_time):
+        if not is_video or not exists(self.down_time):
             return x
 
         x = self.down_time(x)
@@ -330,7 +330,7 @@ class Upsample(nn.Module):
             x, = unpack(x, ps, '* c h w')
             x = rearrange(x, 'b f c h w -> b c f h w')
 
-        if not exists(self.up_time):
+        if not is_video or not exists(self.up_time):
             return x
 
         x = self.up_time(x)
