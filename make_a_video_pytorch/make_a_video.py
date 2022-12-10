@@ -400,6 +400,11 @@ class SpaceTimeUnet(nn.Module):
         dims = [dim, *map(lambda mult: mult * dim, dim_mult)]
         dim_in_out = zip(dims[:-1], dims[1:])
 
+        # determine the valid multiples of the image size and frames of the video
+
+        self.frame_multiple = 2 ** sum(tuple(map(int, temporal_compression)))
+        self.image_size_multiple = 2 ** num_layers
+
         # timestep conditioning for DDPM, not to be confused with the time dimension of the video
 
         self.to_timestep_cond = None
@@ -456,7 +461,20 @@ class SpaceTimeUnet(nn.Module):
         timestep = None,
         enable_time = True
     ):
+
+        # some asserts
+
         assert not (exists(self.to_timestep_cond) ^ exists(timestep))
+        is_video = x.ndim == 5
+
+        if enable_time and is_video:
+            frames = x.shape[2]
+            assert divisible_by(frames, self.frame_multiple), f'number of frames on the video ({frames}) must be divisible by the frame multiple ({self.frame_multiple})'
+
+        height, width = x.shape[-2:]
+        assert divisible_by(height, self.image_size_multiple) and divisible_by(width, self.image_size_multiple), f'height and width of the image or video must be a multiple of {self.image_size_multiple}'
+
+        # main logic
 
         t = self.to_timestep_cond(rearrange(timestep, '... -> (...)')) if exists(timestep) else None
 
