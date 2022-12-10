@@ -400,12 +400,14 @@ class SpaceTimeUnet(nn.Module):
             ]))
 
             self.ups.append(mlist([
-                ResnetBlock(dim_out, dim_in),
+                ResnetBlock(dim_out * 2, dim_in),
                 ResnetBlock(dim_in, dim_in),
                 SpatioTemporalAttention(dim = dim_in, **attn_kwargs) if self_attend else None,
-                Upsample(dim_in, upsample_time = compress_time)
+                Upsample(dim_out, upsample_time = compress_time)
                 
             ]))
+
+        self.skip_scale = 2 ** -0.5 # paper shows faster convergence
 
         self.conv_in = PseudoConv3d(dim = channels, dim_out = dim, kernel_size = 7, temporal_kernel_size = 3)
         self.conv_out = PseudoConv3d(dim = dim, dim_out = channels, kernel_size = 3, temporal_kernel_size = 3)
@@ -417,12 +419,16 @@ class SpaceTimeUnet(nn.Module):
     ):
         x = self.conv_in(x, enable_time = enable_time)
 
+        hiddens = []
+
         for block1, block2, maybe_attention, downsample in self.downs:
             x = block1(x, enable_time = enable_time)
             x = block2(x, enable_time = enable_time)
 
             if exists(maybe_attention):
                 x = maybe_attention(x, enable_time = enable_time)
+
+            hiddens.append(x.clone())
 
             x = downsample(x, enable_time = enable_time)
 
@@ -431,13 +437,14 @@ class SpaceTimeUnet(nn.Module):
         x = self.mid_block2(x, enable_time = enable_time)
 
         for block1, block2, maybe_attention, upsample in reversed(self.ups):
+            x = upsample(x, enable_time = enable_time)
+            x = torch.cat((hiddens.pop() * self.skip_scale, x), dim = 1)
+
             x = block1(x, enable_time = enable_time)
             x = block2(x, enable_time = enable_time)
 
             if exists(maybe_attention):
                 x = maybe_attention(x, enable_time = enable_time)
-
-            x = upsample(x, enable_time = enable_time)
 
         x = self.conv_out(x, enable_time = enable_time)
         return x
