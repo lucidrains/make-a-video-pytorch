@@ -109,15 +109,26 @@ unet = SpaceTimeUnet(
     channels = 3,
     dim_mult = (1, 2, 4, 8),
     temporal_compression = (False, False, False, True),
-    self_attns = (False, False, True, True)
-)
+    self_attns = (False, False, False, True)
+).cuda()
 
-video = torch.randn(1, 3, 16, 256, 256) # (batch, channels, frame)
-pred = unet(video)
+# train on images
 
-assert video.shape == pred.shape
+images = torch.randn(1, 3, 128, 128).cuda()
+images_out  = unet(images)
 
-unet(video, enable_time = False) # treat all frames of video as images
+assert images.shape == images_out.shape
+
+# then train on videos
+
+video = torch.randn(1, 3, 16, 128, 128).cuda()
+video_out = unet(video)
+
+assert video_out.shape == video.shape
+
+# or even treat your videos as images
+
+video_as_images_out = unet(video, enable_time = False)
 ```
 
 ## Todo
