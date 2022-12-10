@@ -109,7 +109,8 @@ unet = SpaceTimeUnet(
     channels = 3,
     dim_mult = (1, 2, 4, 8),
     temporal_compression = (False, False, False, True),
-    self_attns = (False, False, False, True)
+    self_attns = (False, False, False, True),
+    condition_on_timestep = False
 ).cuda()
 
 # train on images
