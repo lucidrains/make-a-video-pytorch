@@ -133,7 +133,7 @@ video_as_images_out = unet(video, enable_time = False)
 
 ## Todo
 
-- [ ] wire up <a href="https://github.com/lucidrains/dalle2-pytorch">dalle2-pytorch</a> unet with pseudo 3d convs + spatial temporal attention
+- [ ] make sure dalle2-pytorch can accept `SpaceTimeUnet` for training
 - [ ] give attention the best positional embeddings research has to offer
 - [ ] soup up the attention
 - [ ] offer a function, similar to how MosaicML's approach, that automatically rigs a 2d-unet from dalle2-pytorch to be 3d

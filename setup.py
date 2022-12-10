@@ -18,7 +18,6 @@ setup(
     'axial convolutions'
   ],
   install_requires=[
-    'dalle2-pytorch',
     'einops>=0.6',
     'torch>=1.6',
   ],
