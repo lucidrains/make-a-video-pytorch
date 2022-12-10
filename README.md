@@ -93,8 +93,31 @@ video = torch.randn(1, 256, 8, 16, 16) # (batch, features, frames, height, width
 
 # below it will not train across time
 
-conv_out = conv(video, convolve_across_time = False) # (1, 256, 8, 16, 16)
-attn_out = attn(video, attend_across_time = False) # (1, 256, 8, 16, 16)
+conv_out = conv(video, enable_time = False) # (1, 256, 8, 16, 16)
+attn_out = attn(video, enable_time = False) # (1, 256, 8, 16, 16)
+```
+
+Full `SpaceTimeUnet` that is agnostic to images or video training, and where even if video is passed in, time can be ignored
+
+
+```python
+import torch
+from make_a_video_pytorch import SpaceTimeUnet
+
+unet = SpaceTimeUnet(
+    dim = 64,
+    channels = 3,
+    dim_mult = (1, 2, 4, 8),
+    temporal_compression = (False, False, False, True),
+    self_attns = (False, False, True, True)
+)
+
+video = torch.randn(1, 3, 16, 256, 256) # (batch, channels, frame)
+pred = unet(video)
+
+assert video.shape == pred.shape
+
+unet(video, enable_time = False) # treat all frames of video as images
 ```
 
 ## Todo

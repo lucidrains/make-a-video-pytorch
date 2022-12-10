@@ -1,4 +1,6 @@
 import torch
+import functools
+from operator import mul
 from torch import nn, einsum
 
 from einops import rearrange, pack, unpack
@@ -11,6 +13,14 @@ def exists(val):
 
 def default(val, d):
     return val if exists(val) else d
+
+def mul_reduce(tup):
+    return functools.reduce(mul, tup)
+
+def divisible_by(numer, denom):
+    return (numer % denom) == 0
+
+mlist = nn.ModuleList
 
 # layernorm 3d
 
@@ -106,12 +116,12 @@ class PseudoConv3d(nn.Module):
     def forward(
         self,
         x,
-        convolve_across_time = True
+        enable_time = True
     ):
         b, c, *_, h, w = x.shape
 
         is_video = x.ndim == 5
-        convolve_across_time &= is_video
+        enable_time &= is_video
 
         if is_video:
             x = rearrange(x, 'b c f h w -> (b f) c h w')
@@ -121,7 +131,7 @@ class PseudoConv3d(nn.Module):
         if is_video:
             x = rearrange(x, '(b f) c h w -> b c f h w', b = b)
 
-        if not convolve_across_time or not exists(self.temporal_conv):
+        if not enable_time or not exists(self.temporal_conv):
             return x
 
         x = rearrange(x, 'b c f h w -> (b h w) c f')
@@ -150,11 +160,11 @@ class SpatioTemporalAttention(nn.Module):
     def forward(
         self,
         x,
-        attend_across_time = True
+        enable_time = True
     ):
         b, c, *_, h, w = x.shape
         is_video = x.ndim == 5
-        attend_across_time &= is_video
+        enable_time &= is_video
 
         if is_video:
             x = rearrange(x, 'b c f h w -> (b f) (h w) c')
@@ -168,7 +178,7 @@ class SpatioTemporalAttention(nn.Module):
         else:
             x = rearrange(x, 'b (h w) c -> b c h w', h = h, w = w)
 
-        if not attend_across_time:
+        if not enable_time:
             return x
 
         x = rearrange(x, 'b c f h w -> (b h w) f c')
@@ -199,9 +209,9 @@ class Block(nn.Module):
         self,
         x,
         scale_shift = None,
-        convolve_across_time = False
+        enable_time = False
     ):
-        x = self.project(x, convolve_across_time = convolve_across_time)
+        x = self.project(x, enable_time = enable_time)
         x = self.norm(x)
 
         if exists(scale_shift):
@@ -237,7 +247,7 @@ class ResnetBlock(nn.Module):
         self,
         x,
         time_emb = None,
-        convolve_across_time = True
+        enable_time = True
     ):
 
         scale_shift = None
@@ -246,9 +256,9 @@ class ResnetBlock(nn.Module):
             time_emb = rearrange(time_emb, 'b c -> b c 1 1')
             scale_shift = time_emb.chunk(2, dim = 1)
 
-        h = self.block1(x, scale_shift = scale_shift, convolve_across_time = convolve_across_time)
+        h = self.block1(x, scale_shift = scale_shift, enable_time = enable_time)
 
-        h = self.block2(h, convolve_across_time = convolve_across_time)
+        h = self.block2(h, enable_time = enable_time)
 
         return h + self.res_conv(x)
 
@@ -278,7 +288,7 @@ class Downsample(nn.Module):
     def forward(
         self,
         x,
-        downsample_time = True
+        enable_time = True
     ):
         is_video = x.ndim == 5
 
@@ -293,7 +303,7 @@ class Downsample(nn.Module):
             x, = unpack(x, ps, '* c h w')
             x = rearrange(x, 'b f c h w -> b c f h w')
 
-        if not is_video or not exists(self.down_time):
+        if not is_video or not exists(self.down_time) or not enable_time:
             return x
 
         x = self.down_time(x)
@@ -323,7 +333,7 @@ class Upsample(nn.Module):
     def forward(
         self,
         x,
-        upsample_time = True
+        enable_time = True
     ):
         is_video = x.ndim == 5
 
@@ -338,7 +348,7 @@ class Upsample(nn.Module):
             x, = unpack(x, ps, '* c h w')
             x = rearrange(x, 'b f c h w -> b c f h w')
 
-        if not is_video or not exists(self.up_time):
+        if not is_video or not exists(self.up_time) or not enable_time:
             return x
 
         x = self.up_time(x)
@@ -349,12 +359,85 @@ class Upsample(nn.Module):
 
 class SpaceTimeUnet(nn.Module):
     def __init__(
-        self
+        self,
+        *,
+        dim,
+        channels = 3,
+        dim_mult = (1, 2, 4, 8),
+        self_attns = (False, False, False, True),
+        temporal_compression = (False, True, True, True),
+        attn_dim_head = 64,
+        attn_heads = 8
     ):
         super().__init__()
+        assert len(dim_mult) == len(self_attns) == len(temporal_compression)
+        num_layers = len(dim_mult)
+
+        dims = [dim, *map(lambda mult: mult * dim, dim_mult)]
+        dim_in_out = zip(dims[:-1], dims[1:])
+
+        self.downs = mlist([])
+        self.ups = mlist([])
+
+        attn_kwargs = dict(
+            dim_head = attn_dim_head,
+            heads = attn_heads
+        )
+
+        mid_dim = dims[-1]
+
+        self.mid_block1 = ResnetBlock(mid_dim, mid_dim)
+        self.mid_attn = SpatioTemporalAttention(dim = mid_dim)
+        self.mid_block2 = ResnetBlock(mid_dim, mid_dim)
+
+        for _, self_attend, (dim_in, dim_out), compress_time in zip(range(num_layers), self_attns, dim_in_out, temporal_compression):
+
+            self.downs.append(mlist([
+                ResnetBlock(dim_in, dim_out),
+                ResnetBlock(dim_out, dim_out),
+                SpatioTemporalAttention(dim = dim_out, **attn_kwargs) if self_attend else None,
+                Downsample(dim_out, downsample_time = compress_time)
+            ]))
+
+            self.ups.append(mlist([
+                ResnetBlock(dim_out, dim_in),
+                ResnetBlock(dim_in, dim_in),
+                SpatioTemporalAttention(dim = dim_in, **attn_kwargs) if self_attend else None,
+                Upsample(dim_in, upsample_time = compress_time)
+                
+            ]))
+
+        self.conv_in = PseudoConv3d(dim = channels, dim_out = dim, kernel_size = 7, temporal_kernel_size = 3)
+        self.conv_out = PseudoConv3d(dim = dim, dim_out = channels, kernel_size = 3, temporal_kernel_size = 3)
 
     def forward(
         self,
-        x
+        x,
+        enable_time = True
     ):
-        raise NotImplementedError
+        x = self.conv_in(x, enable_time = enable_time)
+
+        for block1, block2, maybe_attention, downsample in self.downs:
+            x = block1(x, enable_time = enable_time)
+            x = block2(x, enable_time = enable_time)
+
+            if exists(maybe_attention):
+                x = maybe_attention(x, enable_time = enable_time)
+
+            x = downsample(x, enable_time = enable_time)
+
+        x = self.mid_block1(x, enable_time = enable_time)
+        x = self.mid_attn(x, enable_time = enable_time)
+        x = self.mid_block2(x, enable_time = enable_time)
+
+        for block1, block2, maybe_attention, upsample in reversed(self.ups):
+            x = block1(x, enable_time = enable_time)
+            x = block2(x, enable_time = enable_time)
+
+            if exists(maybe_attention):
+                x = maybe_attention(x, enable_time = enable_time)
+
+            x = upsample(x, enable_time = enable_time)
+
+        x = self.conv_out(x, enable_time = enable_time)
+        return x
