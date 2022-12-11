@@ -5,7 +5,7 @@ from operator import mul
 import torch
 from torch import nn, einsum
 
-from einops import rearrange, pack, unpack
+from einops import rearrange, repeat, pack, unpack
 from einops.layers.torch import Rearrange
 
 # helper functions
@@ -293,19 +293,22 @@ class Downsample(nn.Module):
         self,
         dim,
         downsample_space = True,
-        downsample_time = False
+        downsample_time = False,
+        nonlin = False
     ):
         super().__init__()
         assert downsample_space or downsample_time
 
         self.down_space = nn.Sequential(
             Rearrange('b c (h p1) (w p2) -> b (c p1 p2) h w', p1 = 2, p2 = 2),
-            nn.Conv2d(dim * 4, dim, 1, bias = False)
+            nn.Conv2d(dim * 4, dim, 1, bias = False),
+            nn.SiLU() if nonlin else nn.Identity()
         ) if downsample_space else None
 
         self.down_time = nn.Sequential(
             Rearrange('b c (f p) h w -> b (c p) f h w', p = 2),
-            nn.Conv3d(dim * 2, dim, 1, bias = False)
+            nn.Conv3d(dim * 2, dim, 1, bias = False),
+            nn.SiLU() if nonlin else nn.Identity()
         ) if downsample_time else None
 
     def forward(
@@ -338,20 +341,41 @@ class Upsample(nn.Module):
         self,
         dim,
         upsample_space = True,
-        upsample_time = False
+        upsample_time = False,
+        nonlin = False
     ):
         super().__init__()
         assert upsample_space or upsample_time
 
         self.up_space = nn.Sequential(
-            nn.Conv2d(dim, dim * 4, 1, bias = False),
+            nn.Conv2d(dim, dim * 4, 1),
+            nn.SiLU() if nonlin else nn.Identity(),
             Rearrange('b (c p1 p2) h w -> b c (h p1) (w p2)', p1 = 2, p2 = 2)
         ) if upsample_space else None
 
         self.up_time = nn.Sequential(
-            nn.Conv3d(dim, dim * 2, 1, bias = False),
+            nn.Conv3d(dim, dim * 2, 1),
+            nn.SiLU() if nonlin else nn.Identity(),
             Rearrange('b (c p) f h w -> b c (f p) h w', p = 2)
         ) if upsample_time else None
+
+        self.init_()
+
+    def init_(self):
+        if exists(self.up_space):
+            self.init_conv_(self.up_space[0], 4)
+
+        if exists(self.up_time):
+            self.init_conv_(self.up_time[0], 2)
+
+    def init_conv_(self, conv, factor):
+        o, *remain_dims = conv.weight.shape
+        conv_weight = torch.empty(o // factor, *remain_dims)
+        nn.init.kaiming_uniform_(conv_weight)
+        conv_weight = repeat(conv_weight, 'o ... -> (o r) ...', r = factor)
+
+        conv.weight.data.copy_(conv_weight)
+        nn.init.zeros_(conv.bias.data)
 
     def forward(
         self,
@@ -444,7 +468,7 @@ class SpaceTimeUnet(nn.Module):
 
             self.ups.append(mlist([
                 ResnetBlock(dim_out * 2, dim_in, timestep_cond_dim = timestep_cond_dim),
-                ResnetBlock(dim_in, dim_in),
+                ResnetBlock(dim_in + dim_out, dim_in),
                 SpatioTemporalAttention(dim = dim_in, **attn_kwargs) if self_attend else None,
                 Upsample(dim_out, upsample_time = compress_time)
                 
@@ -484,6 +508,9 @@ class SpaceTimeUnet(nn.Module):
 
         for block1, block2, maybe_attention, downsample in self.downs:
             x = block1(x, t, enable_time = enable_time)
+
+            hiddens.append(x.clone())
+
             x = block2(x, enable_time = enable_time)
 
             if exists(maybe_attention):
@@ -499,9 +526,13 @@ class SpaceTimeUnet(nn.Module):
 
         for block1, block2, maybe_attention, upsample in reversed(self.ups):
             x = upsample(x, enable_time = enable_time)
+
             x = torch.cat((hiddens.pop() * self.skip_scale, x), dim = 1)
 
             x = block1(x, t, enable_time = enable_time)
+
+            x = torch.cat((hiddens.pop() * self.skip_scale, x), dim = 1)
+
             x = block2(x, enable_time = enable_time)
 
             if exists(maybe_attention):
