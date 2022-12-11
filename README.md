@@ -134,10 +134,10 @@ video_as_images_out = unet(video, enable_time = False)
 
 ## Todo
 
+- [x] give attention the best positional embeddings research has to offer
+
 - [ ] make sure dalle2-pytorch can accept `SpaceTimeUnet` for training
-- [ ] give attention the best positional embeddings research has to offer
 - [ ] soup up the attention
-- [ ] offer a function, similar to how MosaicML's approach, that automatically rigs a 2d-unet from dalle2-pytorch to be 3d
 - [ ] consider learned exponential moving average across time from https://github.com/lucidrains/Mega-pytorch
 
 ## Citations
