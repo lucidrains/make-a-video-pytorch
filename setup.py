@@ -18,6 +18,7 @@ setup(
     'axial convolutions'
   ],
   install_requires=[
+    'classifier-free-guidance-pytorch',
     'einops>=0.6',
     'torch>=1.6',
   ],
