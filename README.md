@@ -135,10 +135,9 @@ video_as_images_out = unet(video, enable_time = False)
 ## Todo
 
 - [x] give attention the best positional embeddings research has to offer
+- [x] soup up the attention
 
 - [ ] make sure dalle2-pytorch can accept `SpaceTimeUnet` for training
-- [ ] soup up the attention
-- [ ] consider learned exponential moving average across time from https://github.com/lucidrains/Mega-pytorch
 
 ## Citations
 
@@ -166,5 +165,14 @@ video_as_images_out = unet(video, enable_time = False)
     journal = {ArXiv},
     year    = {2021},
     volume  = {abs/2103.03404}
+}
+```
+
+```bibtex
+@article{Zhang2021TokenST,
+    title   = {Token Shift Transformer for Video Classification},
+    author  = {Hao Zhang and Y. Hao and Chong-Wah Ngo},
+    journal = {Proceedings of the 29th ACM International Conference on Multimedia},
+    year    = {2021}
 }
 ```
