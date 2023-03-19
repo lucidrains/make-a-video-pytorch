@@ -277,6 +277,7 @@ class SpatioTemporalAttention(nn.Module):
         self.temporal_attn = Attention(dim = dim, dim_head = dim_head, heads = heads)
         self.temporal_rel_pos_bias = ContinuousPositionBias(dim = dim // 2, heads = heads, num_dims = 1)
 
+        self.has_feed_forward = add_feed_forward
         if not add_feed_forward:
             return
 
@@ -315,7 +316,9 @@ class SpatioTemporalAttention(nn.Module):
 
             x = rearrange(x, '(b h w) f c -> b c f h w', w = w, h = h)
 
-        x = self.ff(x, enable_time = enable_time) + x
+        if self.has_feed_forward:
+            x = self.ff(x, enable_time = enable_time) + x
+
         return x
 
 # resnet block
