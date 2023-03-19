@@ -78,7 +78,10 @@ class FeedForward(nn.Module):
             GEGLU()
         )
 
-        self.proj_out = nn.Conv3d(inner_dim, dim, 1, bias = False)
+        self.proj_out = nn.Sequential(
+            LayerNorm(inner_dim),
+            nn.Conv3d(inner_dim, dim, 1, bias = False)
+        )
 
     def forward(self, x, enable_time = True):
         x = self.proj_in(x)
