@@ -158,3 +158,13 @@ video_as_images_out = unet(video, enable_time = False)
     url     = {https://openreview.net/forum?id=oapKSVM2bcj}
 }
 ```
+
+```bibtex
+@article{Dong2021AttentionIN,
+    title   = {Attention is Not All You Need: Pure Attention Loses Rank Doubly Exponentially with Depth},
+    author  = {Yihe Dong and Jean-Baptiste Cordonnier and Andreas Loukas},
+    journal = {ArXiv},
+    year    = {2021},
+    volume  = {abs/2103.03404}
+}
+```

@@ -58,18 +58,35 @@ class LayerNorm(nn.Module):
 
 # feedforward
 
+def shift_token(t):
+    t, t_shift = t.chunk(2, dim = 1)
+    t_shift = F.pad(t_shift, (0, 0, 0, 0, 1, -1), value = 0.)
+    return torch.cat((t, t_shift), dim = 1)
+
 class GEGLU(nn.Module):
     def forward(self, x):
-        x, gate = x.chunk(2, dim = -1)
+        x, gate = x.chunk(2, dim = 1)
         return x * F.gelu(gate)
 
-def FeedForward(dim, mult = 4):
-    inner_dim = int(dim * mult * 2 / 3)
-    return nn.Sequential(
-        nn.Linear(dim, inner_dim, bias = False),
-        GEGLU(),
-        nn.Linear(inner_dim, bias = False)
-    )
+class FeedForward(nn.Module):
+    def __init__(self, dim, mult = 4):
+        super().__init__()
+
+        inner_dim = int(dim * mult * 2 / 3)
+        self.proj_in = nn.Sequential(
+            nn.Conv3d(dim, inner_dim * 2, 1, bias = False),
+            GEGLU()
+        )
+
+        self.proj_out = nn.Conv3d(inner_dim, dim, 1, bias = False)
+
+    def forward(self, x, enable_time = True):
+        x = self.proj_in(x)
+
+        if enable_time:
+            x = shift_token(x)
+
+        return self.proj_out(x)
 
 # best relative positional encoding
 
@@ -242,7 +259,6 @@ class PseudoConv3d(nn.Module):
         return x
 
 # factorized spatial temporal attention from Ho et al.
-# todo - take care of relative positional biases + rotary embeddings
 
 class SpatioTemporalAttention(nn.Module):
     def __init__(
@@ -250,7 +266,9 @@ class SpatioTemporalAttention(nn.Module):
         dim,
         *,
         dim_head = 64,
-        heads = 8
+        heads = 8,
+        add_feed_forward = True,
+        ff_mult = 4
     ):
         super().__init__()
         self.spatial_attn = Attention(dim = dim, dim_head = dim_head, heads = heads)
@@ -258,6 +276,11 @@ class SpatioTemporalAttention(nn.Module):
 
         self.temporal_attn = Attention(dim = dim, dim_head = dim_head, heads = heads)
         self.temporal_rel_pos_bias = ContinuousPositionBias(dim = dim // 2, heads = heads, num_dims = 1)
+
+        if not add_feed_forward:
+            return
+
+        self.ff = FeedForward(dim = dim, mult = ff_mult)
 
     def forward(
         self,
@@ -282,17 +305,17 @@ class SpatioTemporalAttention(nn.Module):
         else:
             x = rearrange(x, 'b (h w) c -> b c h w', h = h, w = w)
 
-        if not enable_time:
-            return x
+        if enable_time:
 
-        x = rearrange(x, 'b c f h w -> (b h w) f c')
+            x = rearrange(x, 'b c f h w -> (b h w) f c')
 
-        time_rel_pos_bias = self.temporal_rel_pos_bias(x.shape[1])
+            time_rel_pos_bias = self.temporal_rel_pos_bias(x.shape[1])
 
-        x = self.temporal_attn(x, rel_pos_bias = time_rel_pos_bias) + x
+            x = self.temporal_attn(x, rel_pos_bias = time_rel_pos_bias) + x
 
-        x = rearrange(x, '(b h w) f c -> b c f h w', w = w, h = h)
+            x = rearrange(x, '(b h w) f c -> b c f h w', w = w, h = h)
 
+        x = self.ff(x, enable_time = enable_time) + x
         return x
 
 # resnet block
