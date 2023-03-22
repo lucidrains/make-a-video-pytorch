@@ -45,10 +45,10 @@ class SinusoidalPosEmb(nn.Module):
 
 # layernorm 3d
 
-class LayerNorm(nn.Module):
+class ChanLayerNorm(nn.Module):
     def __init__(self, dim):
         super().__init__()
-        self.g = nn.Parameter(torch.ones(dim))
+        self.g = nn.Parameter(torch.ones(dim, 1, 1, 1))
 
     def forward(self, x):
         eps = 1e-5 if x.dtype == torch.float32 else 1e-3
@@ -79,7 +79,7 @@ class FeedForward(nn.Module):
         )
 
         self.proj_out = nn.Sequential(
-            LayerNorm(inner_dim),
+            ChanLayerNorm(inner_dim),
             nn.Conv3d(inner_dim, dim, 1, bias = False)
         )
 
@@ -175,7 +175,7 @@ class Attention(nn.Module):
         self.scale = dim_head ** -0.5
         inner_dim = dim_head * heads
 
-        self.norm = LayerNorm(dim)
+        self.norm = nn.LayerNorm(dim)
 
         self.to_q = nn.Linear(dim, inner_dim, bias = False)
         self.to_kv = nn.Linear(dim, inner_dim * 2, bias = False)

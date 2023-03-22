@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'make-a-video-pytorch',
   packages = find_packages(exclude=[]),
-  version = '0.1.2',
+  version = '0.2.0',
   license='MIT',
   description = 'Make-A-Video - Pytorch',
   author = 'Phil Wang',
