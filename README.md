@@ -178,12 +178,11 @@ video_as_images_out = unet(video, enable_time = False)
 ```
 
 ```bibtex
-@inproceedings{anonymous2022normformer,
+@inproceedings{shleifer2022normformer,
     title   = {NormFormer: Improved Transformer Pretraining with Extra Normalization},
-    author  = {Anonymous},
+    author  = {Sam Shleifer and Myle Ott},
     booktitle = {Submitted to The Tenth International Conference on Learning Representations },
     year    = {2022},
     url     = {https://openreview.net/forum?id=GMYWzWztDx5},
-    note    = {under review}
 }
 ```
