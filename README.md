@@ -137,6 +137,7 @@ video_as_images_out = unet(video, enable_time = False)
 - [x] give attention the best positional embeddings research has to offer
 - [x] soup up the attention
 
+- [ ] add flash attention
 - [ ] make sure dalle2-pytorch can accept `SpaceTimeUnet` for training
 
 ## Citations
