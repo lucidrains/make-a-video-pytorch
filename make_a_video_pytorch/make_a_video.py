@@ -84,12 +84,24 @@ class FeedForward(nn.Module):
         )
 
     def forward(self, x, enable_time = True):
+
+        is_video = x.ndim == 5
+        enable_time &= is_video
+
+        if not is_video:
+            x = rearrange(x, 'b c h w -> b c 1 h w')
+
         x = self.proj_in(x)
 
         if enable_time:
             x = shift_token(x)
 
-        return self.proj_out(x)
+        out = self.proj_out(x)
+
+        if not is_video:
+            out = rearrange(out, 'b c 1 h w -> b c h w')
+
+        return out
 
 # best relative positional encoding
 
