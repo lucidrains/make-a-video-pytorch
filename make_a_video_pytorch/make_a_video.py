@@ -9,6 +9,8 @@ from torch import nn, einsum
 from einops import rearrange, repeat, pack, unpack
 from einops.layers.torch import Rearrange
 
+from make_a_video_pytorch.attend import Attend
+
 # helper functions
 
 def exists(val):
@@ -45,16 +47,17 @@ class SinusoidalPosEmb(nn.Module):
 
 # layernorm 3d
 
-class ChanLayerNorm(nn.Module):
-    def __init__(self, dim):
+class RMSNorm(nn.Module):
+    def __init__(self, chan, dim = 1):
         super().__init__()
-        self.g = nn.Parameter(torch.ones(dim, 1, 1, 1))
+        self.dim = dim
+        self.gamma = nn.Parameter(torch.ones(chan))
 
     def forward(self, x):
-        eps = 1e-5 if x.dtype == torch.float32 else 1e-3
-        var = torch.var(x, dim = 1, unbiased = False, keepdim = True)
-        mean = torch.mean(x, dim = 1, keepdim = True)
-        return (x - mean) * var.clamp(min = eps).rsqrt() * self.g
+        dim = self.dim
+        right_ones = (dim + 1) if dim < 0 else (x.ndim - 1 - dim)
+        gamma = self.gamma.reshape(-1, *((1,) * right_ones))
+        return F.normalize(x, dim = dim) * (x.shape[dim] ** 0.5) * gamma
 
 # feedforward
 
@@ -79,7 +82,7 @@ class FeedForward(nn.Module):
         )
 
         self.proj_out = nn.Sequential(
-            ChanLayerNorm(inner_dim),
+            RMSNorm(inner_dim),
             nn.Conv3d(inner_dim, dim, 1, bias = False)
         )
 
@@ -180,14 +183,17 @@ class Attention(nn.Module):
         self,
         dim,
         dim_head = 64,
-        heads = 8
+        heads = 8,
+        flash = False
     ):
         super().__init__()
         self.heads = heads
         self.scale = dim_head ** -0.5
         inner_dim = dim_head * heads
 
-        self.norm = nn.LayerNorm(dim)
+        self.attend = Attend(flash = flash)
+
+        self.norm = RMSNorm(dim, dim = -1)
 
         self.to_q = nn.Linear(dim, inner_dim, bias = False)
         self.to_kv = nn.Linear(dim, inner_dim * 2, bias = False)
@@ -200,23 +206,13 @@ class Attention(nn.Module):
         x,
         rel_pos_bias = None
     ):
-
         x = self.norm(x)
 
         q, k, v = self.to_q(x), *self.to_kv(x).chunk(2, dim = -1)
 
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), (q, k, v))
 
-        q = q * self.scale
-
-        sim = einsum('b h i d, b h j d -> b h i j', q, k)
-
-        if exists(rel_pos_bias):
-            sim = sim + rel_pos_bias
-
-        attn = sim.softmax(dim = -1)
-
-        out = einsum('b h i j, b h j d -> b h i d', attn, v)
+        out = self.attend(q, k, v, bias = rel_pos_bias)
 
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
@@ -283,14 +279,18 @@ class SpatioTemporalAttention(nn.Module):
         dim_head = 64,
         heads = 8,
         add_feed_forward = True,
-        ff_mult = 4
+        ff_mult = 4,
+        pos_bias = True,
+        flash = False
     ):
         super().__init__()
-        self.spatial_attn = Attention(dim = dim, dim_head = dim_head, heads = heads)
-        self.spatial_rel_pos_bias = ContinuousPositionBias(dim = dim // 2, heads = heads, num_dims = 2)
+        assert not (flash and pos_bias), 'learned positional attention bias is not compatible with flash attention'
 
-        self.temporal_attn = Attention(dim = dim, dim_head = dim_head, heads = heads)
-        self.temporal_rel_pos_bias = ContinuousPositionBias(dim = dim // 2, heads = heads, num_dims = 1)
+        self.spatial_attn = Attention(dim = dim, dim_head = dim_head, heads = heads, flash = flash)
+        self.spatial_rel_pos_bias = ContinuousPositionBias(dim = dim // 2, heads = heads, num_dims = 2) if pos_bias else None
+
+        self.temporal_attn = Attention(dim = dim, dim_head = dim_head, heads = heads, flash = flash)
+        self.temporal_rel_pos_bias = ContinuousPositionBias(dim = dim // 2, heads = heads, num_dims = 1) if pos_bias else None
 
         self.has_feed_forward = add_feed_forward
         if not add_feed_forward:
@@ -312,7 +312,7 @@ class SpatioTemporalAttention(nn.Module):
         else:
             x = rearrange(x, 'b c h w -> b (h w) c')
 
-        space_rel_pos_bias = self.spatial_rel_pos_bias(h, w)
+        space_rel_pos_bias = self.spatial_rel_pos_bias(h, w) if exists(self.spatial_rel_pos_bias) else None
 
         x = self.spatial_attn(x, rel_pos_bias = space_rel_pos_bias) + x
 
@@ -325,7 +325,7 @@ class SpatioTemporalAttention(nn.Module):
 
             x = rearrange(x, 'b c f h w -> (b h w) f c')
 
-            time_rel_pos_bias = self.temporal_rel_pos_bias(x.shape[1])
+            time_rel_pos_bias = self.temporal_rel_pos_bias(x.shape[1]) if exists(self.temporal_rel_pos_bias) else None
 
             x = self.temporal_attn(x, rel_pos_bias = time_rel_pos_bias) + x
 
@@ -543,7 +543,9 @@ class SpaceTimeUnet(nn.Module):
         resnet_block_depths = (2, 2, 2, 2),
         attn_dim_head = 64,
         attn_heads = 8,
-        condition_on_timestep = True
+        condition_on_timestep = True,
+        attn_pos_bias = True,
+        flash_attn = False
     ):
         super().__init__()
         assert len(dim_mult) == len(self_attns) == len(temporal_compression) == len(resnet_block_depths)
@@ -576,13 +578,15 @@ class SpaceTimeUnet(nn.Module):
 
         attn_kwargs = dict(
             dim_head = attn_dim_head,
-            heads = attn_heads
+            heads = attn_heads,
+            pos_bias = attn_pos_bias,
+            flash= flash_attn
         )
 
         mid_dim = dims[-1]
 
         self.mid_block1 = ResnetBlock(mid_dim, mid_dim, timestep_cond_dim = timestep_cond_dim)
-        self.mid_attn = SpatioTemporalAttention(dim = mid_dim)
+        self.mid_attn = SpatioTemporalAttention(dim = mid_dim, **attn_kwargs)
         self.mid_block2 = ResnetBlock(mid_dim, mid_dim, timestep_cond_dim = timestep_cond_dim)
 
         for _, self_attend, (dim_in, dim_out), compress_time, resnet_block_depth in zip(range(num_layers), self_attns, dim_in_out, temporal_compression, resnet_block_depths):

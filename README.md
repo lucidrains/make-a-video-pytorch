@@ -108,9 +108,12 @@ unet = SpaceTimeUnet(
     dim = 64,
     channels = 3,
     dim_mult = (1, 2, 4, 8),
+    resnet_block_depths = (1, 1, 1, 2),
     temporal_compression = (False, False, False, True),
     self_attns = (False, False, False, True),
-    condition_on_timestep = False
+    condition_on_timestep = False,
+    attn_pos_bias = False,
+    flash_attn = True
 ).cuda()
 
 # train on images
@@ -136,8 +139,8 @@ video_as_images_out = unet(video, enable_time = False)
 
 - [x] give attention the best positional embeddings research has to offer
 - [x] soup up the attention
+- [x] add flash attention
 
-- [ ] add flash attention
 - [ ] make sure dalle2-pytorch can accept `SpaceTimeUnet` for training
 
 ## Citations
@@ -185,5 +188,14 @@ video_as_images_out = unet(video, enable_time = False)
     booktitle = {Submitted to The Tenth International Conference on Learning Representations },
     year    = {2022},
     url     = {https://openreview.net/forum?id=GMYWzWztDx5},
+}
+```
+
+```bibtex
+@inproceedings{dao2022flashattention,
+    title   = {Flash{A}ttention: Fast and Memory-Efficient Exact Attention with {IO}-Awareness},
+    author  = {Dao, Tri and Fu, Daniel Y. and Ermon, Stefano and Rudra, Atri and R{\'e}, Christopher},
+    booktitle = {Advances in Neural Information Processing Systems},
+    year    = {2022}
 }
 ```
