@@ -184,14 +184,15 @@ class Attention(nn.Module):
         dim,
         dim_head = 64,
         heads = 8,
-        flash = False
+        flash = False,
+        causal = False
     ):
         super().__init__()
         self.heads = heads
         self.scale = dim_head ** -0.5
         inner_dim = dim_head * heads
 
-        self.attend = Attend(flash = flash)
+        self.attend = Attend(flash = flash, causal = causal)
 
         self.norm = RMSNorm(dim, dim = -1)
 
@@ -281,7 +282,8 @@ class SpatioTemporalAttention(nn.Module):
         add_feed_forward = True,
         ff_mult = 4,
         pos_bias = True,
-        flash = False
+        flash = False,
+        causal_time_attn = False
     ):
         super().__init__()
         assert not (flash and pos_bias), 'learned positional attention bias is not compatible with flash attention'
@@ -289,7 +291,7 @@ class SpatioTemporalAttention(nn.Module):
         self.spatial_attn = Attention(dim = dim, dim_head = dim_head, heads = heads, flash = flash)
         self.spatial_rel_pos_bias = ContinuousPositionBias(dim = dim // 2, heads = heads, num_dims = 2) if pos_bias else None
 
-        self.temporal_attn = Attention(dim = dim, dim_head = dim_head, heads = heads, flash = flash)
+        self.temporal_attn = Attention(dim = dim, dim_head = dim_head, heads = heads, flash = flash, causal = causal_time_attn)
         self.temporal_rel_pos_bias = ContinuousPositionBias(dim = dim // 2, heads = heads, num_dims = 1) if pos_bias else None
 
         self.has_feed_forward = add_feed_forward
@@ -545,7 +547,8 @@ class SpaceTimeUnet(nn.Module):
         attn_heads = 8,
         condition_on_timestep = True,
         attn_pos_bias = True,
-        flash_attn = False
+        flash_attn = False,
+        causal_time_attn = False
     ):
         super().__init__()
         assert len(dim_mult) == len(self_attns) == len(temporal_compression) == len(resnet_block_depths)
@@ -580,7 +583,8 @@ class SpaceTimeUnet(nn.Module):
             dim_head = attn_dim_head,
             heads = attn_heads,
             pos_bias = attn_pos_bias,
-            flash= flash_attn
+            flash = flash_attn,
+            causal_time_attn = causal_time_attn
         )
 
         mid_dim = dims[-1]

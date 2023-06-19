@@ -36,11 +36,14 @@ class Attend(nn.Module):
     def __init__(
         self,
         dropout = 0.,
-        flash = False
+        flash = False,
+        causal = False
     ):
         super().__init__()
         self.dropout = dropout
         self.attn_dropout = nn.Dropout(dropout)
+
+        self.causal = causal
 
         self.flash = flash
         assert not (flash and version.parse(torch.__version__) < version.parse('2.0.0')), 'in order to use flash attention, you must be using pytorch 2.0 or above'
@@ -76,7 +79,8 @@ class Attend(nn.Module):
         with torch.backends.cuda.sdp_kernel(**config._asdict()):
             out = F.scaled_dot_product_attention(
                 q, k, v,
-                dropout_p = self.dropout if self.training else 0.
+                dropout_p = self.dropout if self.training else 0.,
+                is_causal = self.causal
             )
 
         return out
@@ -101,6 +105,18 @@ class Attend(nn.Module):
         # similarity
 
         sim = einsum(f"b h i d, b h j d -> b h i j", q, k) * scale
+
+        # attn bias
+
+        if exists(bias):
+            sim = sim + bias
+
+        # causal
+
+        if self.causal:
+            i, j = sim.shape[-2:]
+            causal_mask = torch.ones((i, j), dtype = torch.bool, device = device).triu(j - i + 1)
+            sim = sim.masked_fill(causal_mask, -torch.finfo(sim.dtype).max)
 
         # attention
 
