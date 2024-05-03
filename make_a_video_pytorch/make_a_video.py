@@ -346,12 +346,11 @@ class Block(nn.Module):
         dim,
         dim_out,
         kernel_size = 3,
-        temporal_kernel_size = None,
-        groups = 8
+        temporal_kernel_size = None
     ):
         super().__init__()
         self.project = PseudoConv3d(dim, dim_out, 3)
-        self.norm = nn.GroupNorm(groups, dim_out)
+        self.norm = RMSNorm(dim_out)
         self.act = nn.SiLU()
 
     def forward(
@@ -376,7 +375,6 @@ class ResnetBlock(nn.Module):
         dim_out,
         *,
         timestep_cond_dim = None,
-        groups = 8
     ):
         super().__init__()
 
@@ -388,8 +386,8 @@ class ResnetBlock(nn.Module):
                 nn.Linear(timestep_cond_dim, dim_out * 2)
             )
 
-        self.block1 = Block(dim, dim_out, groups = groups)
-        self.block2 = Block(dim_out, dim_out, groups = groups)
+        self.block1 = Block(dim, dim_out)
+        self.block2 = Block(dim_out, dim_out)
         self.res_conv = PseudoConv3d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
 
     def forward(
